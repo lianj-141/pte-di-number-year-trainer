@@ -1,5 +1,3 @@
-import crypto from 'crypto';
-
 // 静态文件内容
 const HTML_CONTENT = `<!DOCTYPE html>
 <html lang="zh-CN">
