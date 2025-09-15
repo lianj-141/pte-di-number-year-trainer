@@ -1,0 +1,10 @@
+name = "pte-di-trainer"
+compatibility_date = "2024-03-08"
+pages_build_output_dir = "."
+
+[env.production.vars]
+TENCENT_REGION = "ap-guangzhou"
+
+[env.production.secrets]
+TENCENT_SECRET_ID = ""
+TENCENT_SECRET_KEY = ""
