@@ -1,176 +1,136 @@
-# Cloudflare Workers 部署指南
+# Cloudflare Workers 部署指南（网页版）
 
-## 项目概述
-这个项目可以完全通过单个 Cloudflare Worker 部署，Worker 既提供静态文件服务，又提供 TTS API 代理。
+## 🌟 最简单的部署方法：使用 Cloudflare 网页控制台
 
-## 部署步骤
+### 步骤 1：注册 Cloudflare 账号
+1. 访问 [https://dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up)
+2. 注册一个免费账号并验证邮箱
 
-### 1. 准备环境
+### 步骤 2：获取腾讯云 TTS 凭证
+1. 登录 [腾讯云控制台](https://console.cloud.tencent.com/)
+2. 开通**语音合成（TTS）**服务
+3. 在 [访问管理 - API密钥管理](https://console.cloud.tencent.com/cam/capi) 中获取：
+   - `SecretId`（类似：AKIDxxxxx）
+   - `SecretKey`（类似：xxxxx）
 
-#### 安装 Wrangler CLI
+### 步骤 3：创建 Worker（网页操作）
+
+#### 3.1 进入 Workers 控制台
+1. 登录 Cloudflare 后，点击左侧的 **"Workers & Pages"**
+2. 点击 **"Create application"**
+3. 选择 **"Create Worker"**
+4. 给 Worker 起个名字，比如 `pte-trainer`
+5. 点击 **"Deploy"**
+
+#### 3.2 上传代码
+1. 部署后会进入代码编辑界面
+2. **删除**默认的所有代码
+3. 打开项目中的 `worker.js` 文件
+4. **复制全部内容**粘贴到编辑器中
+5. 点击右上角 **"Save and deploy"**
+
+### 步骤 4：设置环境变量
+1. 在 Worker 页面，点击 **"Settings"** 标签
+2. 找到 **"Environment Variables"** 部分
+3. 点击 **"Add variable"** 添加以下变量：
+
+**添加第一个变量：**
+- Variable name: `TENCENT_SECRET_ID`
+- Value: `你的腾讯云 SecretId`
+- Type: **选择 "Secret"**（重要！）
+- 点击 **"Save"**
+
+**添加第二个变量：**
+- Variable name: `TENCENT_SECRET_KEY`  
+- Value: `你的腾讯云 SecretKey`
+- Type: **选择 "Secret"**（重要！）
+- 点击 **"Save"**
+
+**添加第三个变量：**
+- Variable name: `TENCENT_REGION`
+- Value: `ap-guangzhou`
+- Type: 选择 "Text"
+- 点击 **"Save"**
+
+### 步骤 5：测试访问
+1. 回到 Worker 的 **"Deployments"** 页面
+2. 找到你的 Worker URL（类似：`https://pte-trainer.你的用户名.workers.dev`）
+3. 点击链接访问你的应用！
+
+---
+
+## 🛠️ 高级用户：命令行部署（可选）
+
+如果你熟悉命令行，也可以使用 wrangler 工具：
+
+### 安装 wrangler
+需要先安装 Node.js，然后：
 ```bash
 npm install -g wrangler
 ```
 
-#### 登录 Cloudflare
+### 登录和部署
 ```bash
+# 登录（会打开浏览器验证）
 wrangler login
-```
 
-### 2. 获取腾讯云 TTS 凭证
-
-1. 登录 [腾讯云控制台](https://console.cloud.tencent.com/)
-2. 开通语音合成（TTS）服务
-3. 在 [访问管理](https://console.cloud.tencent.com/cam/capi) 中获取：
-   - `SecretId`
-   - `SecretKey`
-
-### 3. 配置环境变量
-
-设置腾讯云凭证（这些会被安全地存储为 Workers Secrets）：
-```bash
-wrangler secret put TENCENT_SECRET_ID
-# 输入你的 SecretId
-
-wrangler secret put TENCENT_SECRET_KEY
-# 输入你的 SecretKey
-```
-
-### 4. 部署到 Cloudflare Workers
-
-#### 开发环境测试
-```bash
-wrangler dev
-```
-访问 `http://localhost:8787` 进行本地测试
-
-#### 部署到生产环境
-```bash
-wrangler deploy
-```
-
-部署成功后，你会得到一个类似这样的 URL：
-`https://pte-di-trainer.your-subdomain.workers.dev`
-
-### 5. 自定义域名（可选）
-
-如果你有自己的域名，可以在 Cloudflare Workers 控制台中配置自定义域名：
-
-1. 进入 [Workers 控制台](https://dash.cloudflare.com/workers)
-2. 选择你的 Worker
-3. 点击 "Triggers" 标签
-4. 添加自定义域名
-
-## 项目结构
-
-```
-pte-di-number-year-trainer/
-├── worker.js          # 主 Worker 脚本（包含所有代码）
-├── wrangler.toml      # Cloudflare Workers 配置
-├── index.html         # 原始 HTML（已集成到 worker.js）
-├── app.js            # 原始 JS（已集成到 worker.js）
-├── styles.css        # 原始 CSS（已集成到 worker.js）
-└── WORKERS_DEPLOYMENT.md # 本部署指南
-```
-
-## 功能特性
-
-### API 端点
-- `GET /` - 返回练习应用的 HTML 页面
-- `POST /api/tts` - 腾讯云 TTS 代理接口
-
-### TTS API 使用
-```javascript
-fetch('/api/tts', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    text: 'Hello world',
-    voice: '1001',  // 英文语音
-    speed: 0        // 语速
-  })
-})
-```
-
-### 环境变量
-- `TENCENT_SECRET_ID` - 腾讯云 SecretId（Worker Secret）
-- `TENCENT_SECRET_KEY` - 腾讯云 SecretKey（Worker Secret）
-- `TENCENT_REGION` - 腾讯云地域（默认：ap-guangzhou）
-
-## 本地开发
-
-### 开发环境配置
-```bash
-# 克隆项目
-git clone https://github.com/lianj-141/pte-di-number-year-trainer.git
+# 进入项目目录
 cd pte-di-number-year-trainer
 
-# 设置本地开发环境变量
-wrangler secret put TENCENT_SECRET_ID --env development
-wrangler secret put TENCENT_SECRET_KEY --env development
+# 设置密钥
+wrangler secret put TENCENT_SECRET_ID
+wrangler secret put TENCENT_SECRET_KEY
 
-# 启动开发服务器
-wrangler dev
-```
-
-### 测试 TTS 功能
-访问 `http://localhost:8787`，点击"播放发音"按钮测试 TTS 功能。
-
-## 监控和日志
-
-### 查看日志
-```bash
-wrangler tail
-```
-
-### 监控控制台
-访问 [Cloudflare Workers 控制台](https://dash.cloudflare.com/workers) 查看：
-- 请求统计
-- 错误日志
-- 性能指标
-
-## 成本估算
-
-Cloudflare Workers 免费套餐包括：
-- 每天 100,000 次请求
-- 每次请求最多 10ms CPU 时间
-
-对于个人学习使用完全足够，超出部分按使用量计费。
-
-## 故障排除
-
-### 1. TTS 不工作
-- 检查腾讯云凭证是否正确设置
-- 确认腾讯云 TTS 服务已开通
-- 查看 Worker 日志：`wrangler tail`
-
-### 2. 部署失败
-- 确认已登录 Cloudflare：`wrangler whoami`
-- 检查 `wrangler.toml` 配置
-
-### 3. 本地开发问题
-- 确认 Node.js 版本 >= 16
-- 重新安装 wrangler：`npm install -g wrangler@latest`
-
-## 更新部署
-
-修改代码后重新部署：
-```bash
+# 部署
 wrangler deploy
 ```
 
-Worker 会立即更新，无需重启。
+---
 
-## 安全说明
+## 📝 部署后的 URL
+部署成功后，你会得到一个网址，格式类似：
+```
+https://pte-trainer.你的用户名.workers.dev
+```
 
-- 腾讯云凭证安全存储为 Workers Secrets
-- 前端代码无法访问敏感信息
-- 支持 CORS，但仅限必要的方法
-- TTS 请求有长度限制（150字符）
+## ✅ 功能检查清单
+访问你的网站后，检查以下功能：
+- [ ] 页面正常显示
+- [ ] 可以生成数字/年份
+- [ ] 显示/隐藏读法功能正常
+- [ ] 键盘快捷键工作正常
+- [ ] **播放发音**按钮有声音（这个需要腾讯云配置正确）
 
-## 支持
+## 🔧 常见问题
 
-如有问题，请查看：
-- [Cloudflare Workers 文档](https://developers.cloudflare.com/workers/)
-- [腾讯云 TTS 文档](https://cloud.tencent.com/document/product/1073)
-- [项目 GitHub Issues](https://github.com/lianj-141/pte-di-number-year-trainer/issues)
+### Q: 播放发音没有声音？
+A: 检查以下几点：
+1. 腾讯云 TTS 服务是否已开通
+2. SecretId 和 SecretKey 是否正确
+3. 环境变量类型是否设置为 "Secret"
+
+### Q: 网站打不开？
+A: 
+1. 确认 Worker 已成功部署
+2. 检查 worker.js 代码是否完整复制
+3. 查看 Cloudflare 控制台是否有错误信息
+
+### Q: 如何更新代码？
+A: 
+1. 修改 GitHub 上的 worker.js
+2. 复制新代码到 Cloudflare Workers 编辑器
+3. 点击 "Save and deploy"
+
+### Q: 想要自定义域名？
+A: 
+1. 在 Worker 页面点击 "Triggers" 标签
+2. 点击 "Add Custom Domain"  
+3. 输入你的域名（需要先在 Cloudflare 托管该域名）
+
+## 💰 费用说明
+- Cloudflare Workers 免费套餐：每天 100,000 次请求
+- 腾讯云 TTS：前 10,000 字符免费，之后按量计费
+- 个人学习使用完全免费！
+
+## 🎯 推荐的部署方式
+对于大多数用户，**建议使用网页控制台部署**，简单直观，无需安装额外软件。
