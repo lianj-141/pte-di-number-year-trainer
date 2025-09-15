@@ -1,10 +1,10 @@
 name = "pte-di-trainer"
+main = "worker.js"
 compatibility_date = "2024-03-08"
-pages_build_output_dir = "."
 
 [env.production.vars]
 TENCENT_REGION = "ap-guangzhou"
 
-[env.production.secrets]
-TENCENT_SECRET_ID = ""
-TENCENT_SECRET_KEY = ""
+# 在部署前需要设置以下 secrets:
+# wrangler secret put TENCENT_SECRET_ID
+# wrangler secret put TENCENT_SECRET_KEY
