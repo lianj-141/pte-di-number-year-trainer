@@ -8,16 +8,24 @@ const HTML_CONTENT = `<!DOCTYPE html>
     <style>
 /* Basic reset */
 * { box-sizing: border-box; }
-html, body { height: 100vh; }
+/* Use stable viewport height on mobile to avoid tiny scroll */
+html, body { height: 100%; }
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
   background: #f8fafc;
   color: #1a202c;
+  /* Fallback then modern units; last supported one wins */
   min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
+  /* Safari fix via JS var fallback (set below) */
+  min-height: calc(var(--vh, 1vh) * 100);
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Prevent horizontal overflow on small screens */
+  overflow-x: hidden;
 }
 
 .container {
@@ -36,13 +44,7 @@ body {
   border: 1px solid #e2e8f0;
 }
 
-.topbar h1 {
-  margin: 0 0 20px 0;
-  font-size: 24px;
-  font-weight: 700;
-  text-align: center;
-  color: #2d3748;
-}
+/* Removed .topbar h1 styles (header title deleted) */
 
 .controls-row {
   display: grid;
@@ -242,14 +244,30 @@ button.primary:hover {
     font-size: 13px;
   }
   
+  .display {
+    margin: 0 0 24px 0;
+    padding: 20px 0;
+  }
+
+  .value {
+    font-size: clamp(40px, 12vw, 100px);
+  }
+
+  .reading {
+    font-size: clamp(18px, 4vw, 28px);
+    padding: 12px 16px;
+  }
+
   .actions {
     flex-direction: column;
     align-items: center;
+    margin: 0 0 20px 0;
   }
   
   button {
     width: 100%;
     max-width: 280px;
+    padding: 12px 16px;
   }
 }
     </style>
@@ -257,7 +275,6 @@ button.primary:hover {
   <body>
     <div class="container">
       <header class="topbar">
-        <h1>PTE DI 数字/年份发音练习</h1>
         <div class="controls-row">
           <fieldset class="modes">
             <legend>模式</legend>
@@ -316,6 +333,17 @@ button.primary:hover {
     </div>
 
     <script>
+// Viewport height fix for mobile browsers (iOS Safari, Chrome)
+(() => {
+  const setVh = () => {
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', (vh) + 'px');
+  };
+  setVh();
+  window.addEventListener('resize', setVh, { passive: true });
+  window.addEventListener('orientationchange', () => setTimeout(setVh, 250), { passive: true });
+})();
+
 (() => {
   const qs = (sel) => document.querySelector(sel);
   const qid = (id) => document.getElementById(id);
@@ -525,7 +553,7 @@ button.primary:hover {
         },
         body: JSON.stringify({
           text: text,
-          voice: '1001', // English voice
+          voice: '501008',
           speed: 0
         }),
       });
@@ -685,15 +713,13 @@ async function callTencentTTS(text, voiceType, speed, secretId, secretKey, regio
 
   // Build canonical request
   const algorithm = 'TC3-HMAC-SHA256';
+  // Per TC3-HMAC-SHA256, keep signed headers minimal (stable)
   const canonicalHeaders = [
-    'content-type:application/json; charset=utf-8',
-    `host:${service}.tencentcloudapi.com`,
-    `x-tc-action:${action.toLowerCase()}`,
-    `x-tc-timestamp:${timestamp}`,
-    `x-tc-version:${version}`
+    'content-type:application/json',
+    `host:${service}.tencentcloudapi.com`
   ].join('\n') + '\n';
 
-  const signedHeaders = 'content-type;host;x-tc-action;x-tc-timestamp;x-tc-version';
+  const signedHeaders = 'content-type;host';
   const hashedPayload = await sha256(payloadStr);
   
   const canonicalRequest = [
@@ -716,7 +742,7 @@ async function callTencentTTS(text, voiceType, speed, secretId, secretKey, regio
   ].join('\n');
 
   // Calculate signature
-  const secretDate = await hmacSha256(secretKey, date);
+  const secretDate = await hmacSha256('TC3' + secretKey, date);
   const secretService = await hmacSha256(secretDate, service);
   const secretSigning = await hmacSha256(secretService, 'tc3_request');
   const signature = await hmacSha256(secretSigning, stringToSign, 'hex');
@@ -728,7 +754,7 @@ async function callTencentTTS(text, voiceType, speed, secretId, secretKey, regio
   const url = `https://${service}.tencentcloudapi.com/`;
   const headers = {
     'Authorization': authorization,
-    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Type': 'application/json',
     'Host': `${service}.tencentcloudapi.com`,
     'X-TC-Action': action,
     'X-TC-Timestamp': timestamp.toString(),
@@ -796,7 +822,7 @@ export default {
       try {
         // Parse request body
         const body = await request.json();
-        const { text, voice = '1001', speed = 0 } = body;
+        const { text, voice = '501008', speed = 0 } = body;
 
         // Validate input
         if (!text || text.trim().length === 0) {
@@ -827,7 +853,7 @@ export default {
 
         // Tencent Cloud TTS API call
         const ttsResponse = await callTencentTTS(text, voice, speed, secretId, secretKey, region);
-        
+
         if (!ttsResponse.ok) {
           const errorText = await ttsResponse.text();
           console.error('TTS API error:', errorText);
@@ -837,13 +863,30 @@ export default {
           });
         }
 
-        // Return audio data
-        const audioBuffer = await ttsResponse.arrayBuffer();
-        return new Response(audioBuffer, {
+        // Tencent's TextToVoice returns JSON with base64-encoded audio in Response.Audio
+        const json = await ttsResponse.json();
+        const base64 = json?.Response?.Audio;
+        if (!base64) {
+          console.error('TTS API JSON missing Audio field:', json);
+          return new Response(JSON.stringify({ error: 'Invalid TTS response' }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Decode base64 to Uint8Array (MP3 bytes)
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        return new Response(bytes, {
           headers: {
             ...corsHeaders,
             'Content-Type': 'audio/mpeg',
-            'Content-Length': audioBuffer.byteLength.toString(),
+            'Content-Length': bytes.byteLength.toString(),
           }
         });
 

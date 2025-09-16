@@ -1,0 +1,5 @@
+# 忽略本地开发环境变量文件
+.dev.vars
+node_modules/
+.wrangler/
+test-tts.js
